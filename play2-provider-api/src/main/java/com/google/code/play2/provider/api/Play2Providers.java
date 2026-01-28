@@ -25,23 +25,8 @@ public class Play2Providers
 
     public static String getDefaultProviderId( String playVersion )
     {
-        String result = null;
-        if ( playVersion != null && !playVersion.isEmpty() )
-        {
-            if ( playVersion.startsWith( "3." ) )
-            {
-                result = "play30";
-            }
-            else if ( playVersion.startsWith( "2.9." ) || playVersion.startsWith( "2.9-" ) )
-            {
-                result = "play29"; // Play 2.9.x with Scala 2.13 (use play30 for Scala 3)
-            }
-        }
-        if ( result == null )
-        {
-            result = "play30"; // Default to latest
-        }
-        return result;
+        // Only Play 3.x is supported (Play went from 2.8.x directly to 3.0.x)
+        return "play30";
     }
 
 }
