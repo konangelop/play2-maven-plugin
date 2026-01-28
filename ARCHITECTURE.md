@@ -393,24 +393,88 @@ object index extends _root_.play.twirl.api.BaseScalaTemplate[...](...) {
 
 ## Bytecode Enhancement
 
-### Overview
+### What It Does
 
-Play Framework's Java API uses bytecode enhancement to provide:
-- **Property accessors**: Auto-generate getters/setters for public fields
-- **Rewritten access**: Redirect field access through generated accessors
+Play's bytecode enhancement transforms Java model classes after compilation. It performs two operations:
 
-This allows writing cleaner Java models while maintaining encapsulation.
+1. **Generate accessors** — For every public field, it creates getter/setter methods
+2. **Rewrite access** — All direct field access (reads/writes) is rewritten to use those getters/setters
 
-### Play Framework Reference
+### Example
 
-Play uses ASM bytecode manipulation library. When you write:
+You write:
 ```java
 public class User {
     public String name;
+    public Integer age;
 }
 ```
 
-Enhancement transforms it to have proper `getName()`/`setName()` methods, and all field accesses are rewritten to use these methods.
+After enhancement, it behaves as if you wrote:
+```java
+public class User {
+    public String name;
+    public Integer age;
+
+    public String getName() { return name; }
+    public void setName(String name) { this.name = name; }
+    public Integer getAge() { return age; }
+    public void setAge(Integer age) { this.age = age; }
+}
+```
+
+And anywhere in your code that does:
+```java
+user.name = "Alice";
+String n = user.name;
+```
+
+Gets rewritten to:
+```java
+user.setName("Alice");
+String n = user.getName();
+```
+
+### Why It Exists
+
+1. **Cleaner model code** — You write `public String name;` instead of boilerplate getters/setters
+2. **JavaBeans compatibility** — Frameworks like JPA, JSON serializers, and form binders expect getter/setter methods. Enhancement provides them automatically.
+3. **Interception points** — Because all access goes through methods, Play (or libraries like Ebean) can intercept field access for lazy loading, dirty tracking, validation, etc.
+
+### How It Works
+
+Play uses the **ASM** bytecode manipulation library. The enhancer:
+
+1. Loads the compiled `.class` file
+2. Parses its bytecode using ASM's `ClassReader`
+3. Adds synthetic getter/setter methods for public fields
+4. Scans all methods for `GETFIELD`/`PUTFIELD` instructions that access enhanced fields
+5. Rewrites those to `INVOKEVIRTUAL` calls to the generated accessors
+6. Writes the modified bytecode back to the `.class` file
+
+### Where It Fits in the Build
+
+Enhancement happens in the `process-classes` phase, after compilation but before packaging:
+
+```
+Source files (.java)
+       ↓
+   [compile]  ←── scala-maven-plugin
+       ↓
+Class files (.class)
+       ↓
+ [process-classes]  ←── play2:enhance
+       ↓
+Enhanced class files (.class)
+```
+
+### When It's Needed
+
+Enhancement is only needed if you:
+- Use Play's Java API (not Scala)
+- Have model classes with public fields that need JavaBeans-style access
+
+If you write explicit getters/setters or use Scala (which has its own property syntax), you can skip enhancement.
 
 ### Plugin Implementation
 
