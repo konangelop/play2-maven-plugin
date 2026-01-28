@@ -66,13 +66,13 @@ under the License.
         </dependency>
 
         <dependency>
-            <groupId>org.playframework</groupId>
+            <groupId>com.typesafe.play</groupId>
             <artifactId>play-build-link_2.13</artifactId>
             <version>${play2.version}</version>
         </dependency>
 
         <dependency>
-            <groupId>org.playframework</groupId>
+            <groupId>com.typesafe.play</groupId>
             <artifactId>play-routes-compiler_2.13</artifactId>
             <version>${play2.version}</version>
             <exclusions>
@@ -90,7 +90,7 @@ under the License.
         </dependency>
 
         <dependency>
-            <groupId>org.playframework.twirl</groupId>
+            <groupId>com.typesafe.play</groupId>
             <artifactId>twirl-compiler_2.13</artifactId>
             <version>${twirl.version}</version>
         </dependency>
