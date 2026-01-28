@@ -18,6 +18,8 @@
 package com.google.code.play2.provider.play29;
 
 import java.io.File;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -35,55 +37,62 @@ import com.google.code.play2.provider.api.TemplateCompilationException;
 public class Play29TemplateCompiler
     implements Play2TemplateCompiler
 {
-    private static final String[] templateExts = { "html", "txt", "xml", "js" };
+    private static final String[] templateExts = {
+        "html",
+        "txt",
+        "xml",
+        "js" };
 
-    private static final String[] defaultJavaImports =
-        new String[] {
-            "models._",
-            "controllers._",
-            "play.api.i18n._",
-            "views.%format%._",
-            "play.api.templates.PlayMagic._",
-            "play.api.mvc.Call",
-            "java.lang._",
-            "java.util._",
-            "play.core.j.PlayMagicForJava._",
-            "play.mvc._",
-            "play.api.data.Field",
-            "play.data._",
-            "play.core.j.PlayFormsMagicForJava._" };
+    private static final String[] formatterTypes = {
+        "play.twirl.api.HtmlFormat",
+        "play.twirl.api.TxtFormat",
+        "play.twirl.api.XmlFormat",
+        "play.twirl.api.JavaScriptFormat" };
 
-    private static final String[] defaultScalaImports =
-        new String[] {
-            "models._",
-            "controllers._",
-            "play.api.i18n._",
-            "views.%format%._",
-            "play.api.templates.PlayMagic._",
-            "play.api.mvc.Call" };
+    private static final String[] constructorAnnotations = {
+        "@javax.inject.Inject()"
+    };
+
+    private static final List<String> defaultImportsScala213 = Arrays.asList(
+        "_root_.play.twirl.api.TwirlFeatureImports._",
+        "_root_.play.twirl.api.TwirlHelperImports._",
+        "_root_.play.twirl.api.Html",
+        "_root_.play.twirl.api.JavaScript",
+        "_root_.play.twirl.api.Txt",
+        "_root_.play.twirl.api.Xml"
+    );
+
+    private static final List<String> defaultPlayImportsJava = Arrays.asList(
+        "models._",
+        "controllers._",
+        "play.api.i18n._",
+        "play.api.templates.PlayMagic._",
+        "java.lang._",
+        "java.util._",
+        "play.core.j.PlayMagicForJava._",
+        "play.mvc._",
+        "play.api.data.Field",
+        "play.data._",
+        "play.core.j.PlayFormsMagicForJava._"
+    );
+
+    private static final List<String> defaultPlayImportsScala = Arrays.asList(
+        "models._",
+        "controllers._",
+        "play.api.i18n._",
+        "play.api.templates.PlayMagic._"
+    );
 
     private File sourceDirectory;
 
     private File outputDirectory;
 
-    private List<String> additionalImports = Collections.emptyList();
+    private List<String> additionalImports;
 
     @Override
-    public String[] getDefaultJavaImports()
+    public String getCustomOutputDirectoryName()
     {
-        return defaultJavaImports;
-    }
-
-    @Override
-    public String[] getDefaultScalaImports()
-    {
-        return defaultScalaImports;
-    }
-
-    @Override
-    public String[] getTemplateFileExtensions()
-    {
-        return templateExts;
+        return "twirl";
     }
 
     @Override
@@ -96,6 +105,24 @@ public class Play29TemplateCompiler
     public void setOutputDirectory( File outputDirectory )
     {
         this.outputDirectory = outputDirectory;
+    }
+
+    @Override
+    public List<String> getDefaultJavaImports()
+    {
+        List<String> defaultImports = new ArrayList<String>( defaultImportsScala213.size() + defaultPlayImportsJava.size() );
+        defaultImports.addAll( defaultImportsScala213 );
+        defaultImports.addAll( defaultPlayImportsJava );
+        return Collections.unmodifiableList( defaultImports );
+    }
+
+    @Override
+    public List<String> getDefaultScalaImports()
+    {
+        List<String> defaultImports = new ArrayList<String>( defaultImportsScala213.size() + defaultPlayImportsScala.size() );
+        defaultImports.addAll( defaultImportsScala213 );
+        defaultImports.addAll( defaultPlayImportsScala );
+        return Collections.unmodifiableList( defaultImports );
     }
 
     @Override
@@ -112,45 +139,51 @@ public class Play29TemplateCompiler
 
         String fileName = templateFile.getName();
         String ext = fileName.substring( fileName.lastIndexOf( '.' ) + 1 );
-        String templateName = fileName.substring( 0, fileName.lastIndexOf( '.' ) );
-        String resultFileName = templateName.replace( '.', '_' ) + ".template.scala";
-        File resultDir = getResultDir( templateFile );
-
-        Seq<String> scalaAdditionalImports = CollectionConverters.asScala( additionalImports ).toSeq();
-
-        try
+        int index = getTemplateExtIndex( ext );
+        if ( index >= 0 )
         {
-            Option<File> resultFile =
-                TwirlCompiler.compile( templateFile, sourceDirectory, outputDirectory, ext,
-                                       scalaAdditionalImports, CollectionConverters.asScala( Collections.<String>emptyList() ).toSeq(), Codec.UTF8(),
-                                       false );
-            if ( resultFile.isDefined() )
+            String formatterType = formatterTypes[index];
+            Seq<String> additionalImportsSeq = getAdditionalImports( ext );
+            Seq<String> constructorAnnotationsSeq =
+                CollectionConverters.asScala( Arrays.asList( constructorAnnotations ) ).toSeq();
+            try
             {
-                result = resultFile.get();
+                Option<File> resultOption =
+                    TwirlCompiler.compile( templateFile, sourceDirectory, outputDirectory, formatterType,
+                                           additionalImportsSeq, constructorAnnotationsSeq,
+                                           Codec.apply( "UTF-8" )/* codec */, false/* inclusiveDot */ );
+                result = resultOption.isDefined() ? resultOption.get() : null;
             }
-            else
+            catch ( TemplateCompilationError e )
             {
-                result = new File( resultDir, resultFileName );
+                throw new TemplateCompilationException( e.source(), e.message(), e.line(), e.column() );
             }
-        }
-        catch ( TemplateCompilationError e )
-        {
-            throw new TemplateCompilationException( e.source(), e.message(), e.line(), e.column() );
         }
         return result;
     }
 
-    private File getResultDir( File templateFile )
+    private int getTemplateExtIndex( String ext )
     {
-        File resultDir = outputDirectory;
-
-        File parentDir = templateFile.getParentFile();
-        if ( !parentDir.equals( sourceDirectory ) )
+        int result = -1;
+        for ( int i = 0; i < templateExts.length; i++ )
         {
-            String relativePath = parentDir.getAbsolutePath().substring( sourceDirectory.getAbsolutePath().length() );
-            resultDir = new File( outputDirectory, relativePath );
+            if ( templateExts[i].equals( ext ) )
+            {
+                result = i;
+                break;
+            }
         }
-        return resultDir;
+        return result;
+    }
+
+    private Seq<String> getAdditionalImports( String format )
+    {
+        List<String> formattedAdditionalImports = new ArrayList<String>( additionalImports.size() );
+        for ( String additionalImport : additionalImports )
+        {
+            formattedAdditionalImports.add( additionalImport.replace( "%format%", format ) );
+        }
+        return CollectionConverters.asScala( formattedAdditionalImports ).toSeq();
     }
 
 }

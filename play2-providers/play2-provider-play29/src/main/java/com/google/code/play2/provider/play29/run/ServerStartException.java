@@ -17,16 +17,21 @@
 
 package com.google.code.play2.provider.play29.run;
 
-import com.google.code.play2.provider.api.Play2ServerStartException;
-
-public class ServerStartException
-    extends Play2ServerStartException
+public class ServerStartException extends Throwable
 {
     private static final long serialVersionUID = 1L;
 
-    public ServerStartException( Throwable cause )
+    private Throwable underlying;
+
+    public ServerStartException( Throwable underlying )
     {
-        super( cause );
+        super();
+        this.underlying = underlying;
+    }
+
+    public String getMessage()
+    {
+        return underlying.getMessage();
     }
 
 }

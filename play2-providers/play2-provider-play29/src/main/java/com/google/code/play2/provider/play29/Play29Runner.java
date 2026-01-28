@@ -74,7 +74,7 @@ public class Play29Runner
         ReloaderApplicationClassLoaderProvider applicationClassLoaderProvider =
             new ReloaderApplicationClassLoaderProvider();
         ClassLoader delegatingLoader =
-            new DelegatingClassLoader( commonClassLoader, Build.sharedClasses(), buildLoader,
+            new DelegatingClassLoader( commonClassLoader, Build.sharedClasses, buildLoader,
                                        applicationClassLoaderProvider );
         ClassLoader applicationLoader =
             new NamedURLClassLoader( "PlayDependencyClassLoader",
