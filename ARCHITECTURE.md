@@ -17,6 +17,7 @@ This document provides a comprehensive overview of the Play2 Maven Plugin archit
 11. [File Watch Service](#file-watch-service)
 12. [SBT Analysis Integration](#sbt-analysis-integration)
 13. [Configuration Reference](#configuration-reference)
+14. [Play 2.9 and Play 3.0 Support Changes](#play-29-and-play-30-support-changes)
 
 ---
 
@@ -1153,6 +1154,198 @@ This hierarchy enables:
 - Shared database connections across reloads
 - Play framework classes to remain loaded
 - Only application classes to be reloaded
+
+---
+
+## Play 2.9 and Play 3.0 Support Changes
+
+This section documents the changes made to support Play 2.9.x and Play 3.0.x, which have significant differences from earlier Play versions.
+
+### Key Differences Between Play 2.9 and Play 3.0
+
+| Aspect | Play 2.9.x | Play 3.0.x |
+|--------|-----------|-----------|
+| GroupId | `com.typesafe.play` | `org.playframework` |
+| Scala Version | Scala 2.13 | Scala 3 |
+| build-link artifact | `play-build-link` (no Scala suffix) | `play-build-link` (no Scala suffix) |
+| routes-compiler artifact | `play-routes-compiler_2.13` | `play-routes-compiler_3` |
+| twirl-compiler artifact | `twirl-compiler_2.13` | `twirl-compiler_3` |
+| Minimum Java | Java 11 | Java 11 |
+
+### Step 1: Provider Selection Logic
+
+**File:** `play2-provider-api/src/main/java/com/google/code/play2/provider/api/Play2Providers.java`
+
+The provider selection was updated to recognize Play 2.9.x:
+
+```java
+public static String getDefaultProviderId(String playVersion) {
+    if (playVersion.startsWith("2.9.")) {
+        return "play29";
+    }
+    // Play 3.x
+    return "play30";
+}
+```
+
+### Step 2: Add play29 Provider to Build
+
+**File:** `play2-providers/pom.xml`
+
+Added the play29 module to the build:
+
+```xml
+<modules>
+    <module>play2-provider-play29</module>
+    <module>play2-provider-play30</module>
+</modules>
+```
+
+### Step 3: Fix play29 Provider Dependencies
+
+**File:** `play2-providers/play2-provider-play29/pom.xml`
+
+The artifact name for `play-build-link` changed — it no longer has a Scala suffix in Play 2.9+:
+
+```xml
+<!-- Wrong (old naming) -->
+<artifactId>play-build-link_2.13</artifactId>
+
+<!-- Correct -->
+<artifactId>play-build-link</artifactId>
+```
+
+### Step 4: Update ServerStartException
+
+**File:** `play2-providers/play2-provider-play29/src/main/java/.../run/ServerStartException.java`
+
+The `Play2ServerStartException` class was removed from the API. Changed to extend `Throwable` directly:
+
+```java
+// Old (broken)
+public class ServerStartException extends Play2ServerStartException { ... }
+
+// New (working)
+public class ServerStartException extends Throwable {
+    private Throwable underlying;
+
+    public ServerStartException(Throwable underlying) {
+        this.underlying = underlying;
+    }
+
+    public String getMessage() {
+        return underlying.getMessage();
+    }
+}
+```
+
+### Step 5: Fix Play29Runner
+
+**File:** `play2-providers/play2-provider-play29/src/main/java/.../Play29Runner.java`
+
+The `Build.sharedClasses` changed from a method to a field:
+
+```java
+// Old (broken)
+new DelegatingClassLoader(commonClassLoader, Build.sharedClasses(), buildLoader, ...);
+
+// New (working)
+new DelegatingClassLoader(commonClassLoader, Build.sharedClasses, buildLoader, ...);
+```
+
+### Step 6: Update Play29TemplateCompiler
+
+**File:** `play2-providers/play2-provider-play29/src/main/java/.../Play29TemplateCompiler.java`
+
+The `Play2TemplateCompiler` interface changed:
+
+1. **Return types changed from `String[]` to `List<String>`:**
+   ```java
+   // Old
+   public String[] getDefaultJavaImports() { ... }
+   public String[] getDefaultScalaImports() { ... }
+
+   // New
+   public List<String> getDefaultJavaImports() { ... }
+   public List<String> getDefaultScalaImports() { ... }
+   ```
+
+2. **New method required:**
+   ```java
+   @Override
+   public String getCustomOutputDirectoryName() {
+       return "twirl";
+   }
+   ```
+
+3. **Removed method:**
+   ```java
+   // This method no longer exists in the interface
+   public String[] getTemplateFileExtensions() { ... }
+   ```
+
+### Step 7: Replace Scala Compiler Plugin
+
+**File:** `play2-maven-plugin/src/main/resources/META-INF/plexus/components.xml`
+
+The `sbt-compiler-maven-plugin` is outdated and doesn't support modern Scala/Java versions. Replaced with `scala-maven-plugin`:
+
+```xml
+<!-- Old (broken with Scala 2.13.17+) -->
+<compile>
+  com.google.code.sbt-compiler-maven-plugin:sbt-compiler-maven-plugin:compile
+</compile>
+<test-compile>
+  com.google.code.sbt-compiler-maven-plugin:sbt-compiler-maven-plugin:testCompile
+</test-compile>
+
+<!-- New (working) -->
+<compile>
+  net.alchim31.maven:scala-maven-plugin:compile
+</compile>
+<test-compile>
+  net.alchim31.maven:scala-maven-plugin:testCompile
+</test-compile>
+```
+
+### Step 8: Update Java Target Version
+
+**File:** `play2-source-watchers/play2-source-watcher-jdk7/pom.xml`
+
+The module targeted Java 1.7 which is no longer supported by modern compilers. Updated to Java 11:
+
+```xml
+<!-- Old -->
+<source>1.7</source>
+<target>1.7</target>
+
+<!-- New -->
+<source>11</source>
+<target>11</target>
+```
+
+### User Configuration for Play 2.9
+
+Users of Play 2.9.x with modern Scala (2.13.17+) need to configure the `scala-maven-plugin` in their application's `pom.xml`:
+
+```xml
+<plugin>
+    <groupId>net.alchim31.maven</groupId>
+    <artifactId>scala-maven-plugin</artifactId>
+    <version>4.9.2</version>
+    <configuration>
+        <!-- Scala 2.13 doesn't support -release 25, use max supported -->
+        <args>
+            <arg>-release:21</arg>
+        </args>
+    </configuration>
+</plugin>
+```
+
+This is needed because:
+- The scala-maven-plugin inherits the `-release` flag from `maven-compiler-plugin`
+- Scala 2.13 only supports up to `-release:21`
+- If your project targets Java 25, Scala compilation will fail without this override
 
 ---
 
