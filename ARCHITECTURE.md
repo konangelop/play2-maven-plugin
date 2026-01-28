@@ -714,20 +714,114 @@ Only the bottom `ReloadableClassLoader` gets replaced. Everything above it stays
 
 ### File Watching
 
-The plugin uses a `FileWatchService` to detect changes without polling:
+#### Runtime Architecture
 
-```java
-// Start watching after first successful build
-FileWatcher watcher = playWatchService.watch(
-    sourceDirectories,  // app/, conf/, etc.
-    this                // callback: onChange(File)
-);
+The `FileWatchService` is **not** part of your application. It runs only inside the Maven plugin process during `mvn play2:run`:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Maven Process (mvn play2:run)                              │
+│                                                             │
+│  ┌─────────────────────┐    ┌─────────────────────────────┐ │
+│  │  FileWatchService   │    │  MavenPlay2Builder          │ │
+│  │  (jdk7/jnotify/     │───>│  (triggers rebuild when     │ │
+│  │   polling)          │    │   files change)             │ │
+│  └─────────────────────┘    └─────────────────────────────┘ │
+│                                        │                    │
+│                                        ▼                    │
+│  ┌─────────────────────────────────────────────────────────┐│
+│  │  Play Dev Server (runs in same JVM but separate         ││
+│  │  classloaders)                                          ││
+│  │                                                         ││
+│  │  - Your application code                                ││
+│  │  - Play Framework                                       ││
+│  │  - Your dependencies                                    ││
+│  └─────────────────────────────────────────────────────────┘│
+└─────────────────────────────────────────────────────────────┘
 ```
 
-Three implementations are available:
-- **jdk7** — Uses `java.nio.file.WatchService` (default)
-- **jnotify** — Native library, better performance on Linux
-- **polling** — Fallback for network filesystems
+When you run `mvn play2:run`, the plugin stays active the entire time:
+
+```
+mvn play2:run
+     │
+     ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  Plugin starts and stays running until you press Enter          │
+│                                                                 │
+│  1. FileWatchService (background thread)                        │
+│     └── Constantly monitors: app/, conf/, public/, etc.         │
+│     └── Calls onChange() when files modified                    │
+│                                                                 │
+│  2. Play Dev Server (runs your app)                             │
+│     └── On each HTTP request, calls buildLink.reload()          │
+│     └── If files changed → rebuild → new ClassLoader            │
+│                                                                 │
+│  3. Main thread                                                 │
+│     └── Blocked on System.in.read() waiting for Enter key       │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+     │
+     ▼ (user presses Enter)
+
+  Server shuts down, Maven exits
+```
+
+The key code in `Play2RunMojo`:
+
+```java
+// Start the server
+Play2DevServer devModeServer = play2Runner.runInDevMode(configuration);
+
+// This line blocks - plugin sits here until you press Enter
+getLog().info("(Server started, use [Enter] to stop...)");
+System.in.read();  // <-- Maven process waits here
+
+// Clean up
+devModeServer.close();
+```
+
+The watch service:
+- Lives in the Maven plugin's classloader
+- Watches your source directories (`app/`, `conf/`, etc.)
+- Notifies `MavenPlay2Builder` when files change
+- Is **not** packaged in your application JAR/distribution
+
+When you run `mvn package` or `mvn play2:dist` for production, none of this hot-reload machinery is included.
+
+#### Watch Service Selection
+
+The watch service is selected based on OS and JDK, not Play version:
+
+| OS | JDK | Watch Service |
+|---|---|---|
+| Windows | Java 7+ | **jdk7** (uses `java.nio.file.WatchService`) |
+| Linux | Java 7+ | **jdk7** |
+| Windows/Linux | Java 6 | jnotify (native library) |
+| macOS | any | jnotify (native library) |
+| Other | any | polling (fallback) |
+
+Since Play 2.9+ requires Java 11+, on Windows or Linux you'll always get **jdk7**.
+
+Note: The module is named `play2-source-watcher-jdk7` for historical reasons (the `WatchService` API was introduced in JDK 7). The module itself targets Java 11.
+
+You can override the selection:
+```xml
+<configuration>
+    <fileWatchService>polling</fileWatchService>
+</configuration>
+```
+
+Or via command line:
+```bash
+mvn play2:run -Dplay2.fileWatchService=polling
+```
+
+#### Watch Service Implementations
+
+- **jdk7** — Uses `java.nio.file.WatchService`. Default on Windows/Linux with Java 7+.
+- **jnotify** — Native library using OS-specific file notification APIs. Default on macOS.
+- **polling** — Simple periodic file scanning. Fallback for network filesystems or when native watching fails.
 
 ### Source Position Mapping
 
