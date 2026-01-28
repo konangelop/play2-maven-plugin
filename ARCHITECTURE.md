@@ -537,226 +537,248 @@ public class Play2EnhanceClassesMojo extends AbstractPlay2EnhanceMojo {
 
 ## Development Mode (Hot Reload)
 
-### Overview
+### The Problem Hot Reload Solves
 
-The `run` goal starts Play in development mode with automatic recompilation and hot reload when source files change.
+In traditional Java web development, the edit-compile-restart cycle is slow:
+1. Edit source code
+2. Run `mvn package`
+3. Stop the running server
+4. Start the server again
+5. Wait for JVM warmup, dependency injection, database connections, etc.
+6. Finally test your change
 
-### Play Framework Reference
+This can take 30+ seconds per change. Play's hot reload reduces this to ~1-3 seconds.
 
-Play's dev mode uses a `BuildLink` interface that the build tool implements. On each HTTP request:
-1. Play calls `BuildLink.reload()`
-2. Build tool checks for changes and recompiles if needed
-3. If classes changed, return new `ClassLoader`
-4. Play reloads the application with the new classloader
+### How Hot Reload Works
+
+Play's dev server doesn't restart the JVM. Instead, it creates a new `ClassLoader` with the recompiled classes and reloads just the application code, while keeping the JVM, framework classes, and database connections alive.
+
+The key insight: **Play calls back into the build tool on every HTTP request**.
+
+```
+Browser                    Play Dev Server                 Build Tool (Maven)
+   │                             │                                │
+   │──── GET /users ────────────>│                                │
+   │                             │                                │
+   │                             │─── buildLink.reload() ────────>│
+   │                             │                                │
+   │                             │    (check for file changes)    │
+   │                             │    (recompile if needed)       │
+   │                             │    (return new ClassLoader)    │
+   │                             │                                │
+   │                             │<── ClassLoader or null ────────│
+   │                             │                                │
+   │                             │    (if new ClassLoader:        │
+   │                             │     reload application)        │
+   │                             │                                │
+   │<─── HTTP Response ──────────│                                │
+```
+
+### The BuildLink Interface
+
+`BuildLink` is Play's SPI (Service Provider Interface) that build tools must implement:
+
+```java
+// Simplified from play.core.BuildLink
+public interface BuildLink {
+    // Called on every HTTP request
+    // Returns:
+    //   - null: no changes, keep current app
+    //   - ClassLoader: changes detected, reload with this classloader
+    //   - Throwable: compilation failed, show error page
+    Object reload();
+
+    // Find source file for a class (for error pages)
+    Object[] findSource(String className, Integer line);
+
+    // Get project path
+    File projectPath();
+
+    // Run mode settings
+    Map<String, String> settings();
+}
+```
 
 ### Plugin Implementation
 
-#### Play2RunMojo
-
-**Location:** `play2-maven-plugin/src/main/java/com/google/code/play2/plugin/Play2RunMojo.java:69-664`
-
-```java
-@Mojo(name = "run", requiresDependencyCollection = ResolutionScope.RUNTIME)
-public class Play2RunMojo extends AbstractPlay2EnhanceMojo implements Contextualizable {
-
-    @Parameter(property = "play2.httpPort", defaultValue = "")
-    private String httpPort;  // Default: 9000
-
-    @Parameter(property = "play2.httpAddress", defaultValue = "")
-    private String httpAddress;  // Default: 0.0.0.0
-
-    @Parameter(property = "play2.runGoals", defaultValue = "process-classes", required = true)
-    private String runGoals;  // Maven goals to run on rebuild
-
-    @Parameter(property = "play2.devSettings", defaultValue = "")
-    private String devSettings;
-}
-```
-
-#### Execution Flow
-
-1. **Collect required modules** (lines 341-349):
-   ```java
-   List<MavenProject> upstreamProjects =
-       session.getProjectDependencyGraph().getUpstreamProjects(project, true);
-   List<MavenProject> allRequiredReactorModules =
-       new ArrayList<>(1 + upstreamProjects.size());
-   ```
-
-2. **Build dependency classpath** (lines 351-375):
-   - Collect all dependency artifacts (excluding reactor projects)
-   - Resolve Scala version from `scala-library` artifact
-
-3. **Initialize file watch service** (lines 474-484):
-   ```java
-   FileWatchService playWatchService = getWatchService();
-   playWatchService.initialize(new MavenFileWatchLogger(getLog()));
-   ```
-
-4. **Create MavenPlay2Builder** (lines 486-489):
-   ```java
-   Play2Builder buildLink = new MavenPlay2Builder(
-       allRequiredReactorModules, sourceEncoding, goals, additionalGoals,
-       assetsPrefix, getLog(), session, lifecycleExecutor, container,
-       templateCompilationOutputDirectory, sbtAnalysisProcessor, playWatchService
-   );
-   ```
-
-5. **Start dev server** (lines 505-520):
-   ```java
-   Play2DevServer devModeServer = play2Runner.runInDevMode(configuration);
-   getLog().info("(Server started, use [Enter] to stop...)");
-   System.in.read();  // Wait for user input
-   devModeServer.close();
-   ```
+The plugin implements this in two classes:
 
 #### MavenPlay2Builder
 
-**Location:** `play2-maven-plugin/src/main/java/com/google/code/play2/plugin/MavenPlay2Builder.java:71-630`
+**Location:** `play2-maven-plugin/src/main/java/com/google/code/play2/plugin/MavenPlay2Builder.java`
 
-This class implements `Play2Builder` interface and handles:
+This is the Maven-specific build logic:
 
-**File change tracking** (lines 144-167):
 ```java
-@Override
-public void onChange(File changedFile) {
-    String path = changedFile.getAbsolutePath();
-    Long currentTimestamp = Long.valueOf(changedFile.lastModified());
-    synchronized (changedFilesLock) {
-        Long prevTimestamp = changedFiles.get(path);
-        if (prevTimestamp == null || !prevTimestamp.equals(currentTimestamp)) {
-            logger.debug("\"" + path + "\" file changed");
-            changedFiles.put(path, currentTimestamp);
+public class MavenPlay2Builder implements Play2Builder {
+
+    // File watcher callback - called when source files change
+    public void onChange(File changedFile) {
+        synchronized (changedFilesLock) {
+            changedFiles.put(path, timestamp);
         }
     }
-}
-```
 
-**Build execution** (lines 220-445):
-```java
-@Override
-public boolean build() throws Play2BuildFailure, Play2BuildError {
-    // Check if changes detected
-    if (!forceReloadNextTime && changedFilePaths == null) {
-        return false;  // No reload needed
-    }
-
-    // Calculate which modules need rebuilding (multi-module optimization)
-    List<MavenProject> projectsToBuild = calculateProjectsToBuild(changedFilePaths);
-
-    // Execute Maven build
-    MavenExecutionResult result = executeBuild(projectsToBuild, goals);
-
-    // Handle compilation errors
-    if (result.hasExceptions()) {
-        // Extract and wrap Play-specific exceptions
-        throw new Play2BuildFailure(pbe, sourceEncoding);
-    }
-
-    // After first successful build, start file watcher
-    if (!afterFirstSuccessfulBuild) {
-        afterFirstSuccessfulBuild = true;
-        watcher = playWatchService.watch(monitoredDirectories, this);
-    }
-
-    // Determine if classloader reload is needed
-    return shouldReload;
-}
-```
-
-**Source position mapping** (lines 175-217):
-```java
-@Override
-public Object[] findSource(String className, Integer line) {
-    // Look up source file from SBT analysis
-    File sourceFile = sourceMap.get(topType);
-    if (sourceFile != null) {
-        // If it's a generated template, map back to original
-        if (sourceFile.getAbsolutePath().startsWith(
-                templateCompilationOutputDirectory.getAbsolutePath())) {
-            Play2TemplateSourcePositionMapper mapper =
-                new Play2TemplateSourcePositionMapper();
-            Play2TemplateGeneratedSource template =
-                mapper.getGeneratedSource(sourceFile);
-            File originalSourceFile = new File(template.getSourceFileName());
-            Integer originalLine = template.mapLine(line.intValue());
-            return new Object[] { originalSourceFile, originalLine };
+    // Called by Reloader on each request
+    public boolean build() throws Play2BuildFailure {
+        // 1. Check if any files changed
+        if (changedFiles.isEmpty() && !forceReload) {
+            return false;  // No rebuild needed
         }
+
+        // 2. Figure out which Maven modules need rebuilding
+        List<MavenProject> projectsToBuild = calculateProjectsToBuild();
+
+        // 3. Execute Maven build (routes-compile, template-compile, compile, enhance)
+        MavenExecutionResult result = executeBuild(projectsToBuild, goals);
+
+        // 4. Handle compilation errors
+        if (result.hasExceptions()) {
+            throw new Play2BuildFailure(extractError(result));
+        }
+
+        // 5. Return true = classloader reload needed
+        return true;
     }
-    return result;
 }
 ```
 
 #### Reloader
 
-**Location:** `play2-providers/play2-provider-play30/src/main/java/com/google/code/play2/provider/play30/run/Reloader.java:33-155`
+**Location:** `play2-providers/play2-provider-play30/src/main/java/com/google/code/play2/provider/play30/run/Reloader.java`
 
-The `Reloader` class implements Play's `BuildLink` interface:
+This wraps `MavenPlay2Builder` and implements Play's `BuildLink`:
 
 ```java
 public class Reloader implements BuildLink {
     private Play2Builder buildLink;
     private ClassLoader baseLoader;
-    private volatile URLClassLoader currentApplicationClassLoader = null;
+    private URLClassLoader currentApplicationClassLoader;
     private int classLoaderVersion = 0;
 
     @Override
     public synchronized Object reload() {
         try {
+            // Ask Maven to rebuild if needed
             boolean reloadRequired = buildLink.build();
+
             if (reloadRequired) {
-                int version = ++classLoaderVersion;
+                // Create new ClassLoader with fresh classes
+                classLoaderVersion++;
                 currentApplicationClassLoader = new DelegatedResourcesClassLoader(
-                    "ReloadableClassLoader(v" + version + ")",
-                    toUrls(outputDirectories),
+                    "ReloadableClassLoader(v" + classLoaderVersion + ")",
+                    toUrls(outputDirectories),  // target/classes
                     baseLoader
                 );
                 return currentApplicationClassLoader;
             }
+            return null;  // No changes
+
         } catch (Play2BuildFailure e) {
-            return new CompilationException(e.getMessage(), e.line(),
-                                           e.position(), e.source());
+            // Return compilation error - Play shows nice error page
+            return new CompilationException(
+                e.getMessage(),
+                e.line(),
+                e.position(),
+                e.source()
+            );
         }
-        return null;  // No changes
     }
 }
 ```
 
-#### Play28Runner
+### ClassLoader Hierarchy
 
-**Location:** `play2-providers/play2-provider-play30/src/main/java/com/google/code/play2/provider/play30/Play28Runner.java:45-140`
+The classloader structure is critical for hot reload to work:
 
-Starts the Play development server:
+```
+System ClassLoader
+    │
+    └── CommonClassLoader (H2 database, etc.)
+            │
+            └── DelegatingClassLoader (Play internals)
+                    │
+                    └── PlayDependencyClassLoader (your dependencies)
+                            │
+                            └── AssetsClassLoader (static files)
+                                    │
+                                    └── ReloadableClassLoader ← REPLACED ON RELOAD
+                                            │
+                                            (your application classes)
+```
+
+Only the bottom `ReloadableClassLoader` gets replaced. Everything above it stays loaded, which is why:
+- Database connection pools survive reloads
+- Framework classes don't need re-initialization
+- Only your changed code reloads
+
+### File Watching
+
+The plugin uses a `FileWatchService` to detect changes without polling:
 
 ```java
-@Override
-public Play2DevServer runInDevMode(Play2RunnerConfiguration configuration) throws Throwable {
-    // Set up classloader hierarchy
-    ClassLoader buildLoader = Reloader.class.getClassLoader();
-    ClassLoader commonClassLoader = commonClassLoader(configuration.getDependencyClasspath());
-    ClassLoader delegatingLoader = new DelegatingClassLoader(
-        commonClassLoader, Build.sharedClasses, buildLoader,
-        applicationClassLoaderProvider);
-    ClassLoader applicationLoader = new NamedURLClassLoader(
-        "PlayDependencyClassLoader",
-        Reloader.toUrls(configuration.getDependencyClasspath()),
-        delegatingLoader);
+// Start watching after first successful build
+FileWatcher watcher = playWatchService.watch(
+    sourceDirectories,  // app/, conf/, etc.
+    this                // callback: onChange(File)
+);
+```
 
-    // Create reloader
-    Reloader reloader = new Reloader(
-        configuration.getBuildLink(), applicationLoader,
-        configuration.getBaseDirectory(), configuration.getOutputDirectories(),
-        configuration.getDevSettings());
+Three implementations are available:
+- **jdk7** — Uses `java.nio.file.WatchService` (default)
+- **jnotify** — Native library, better performance on Linux
+- **polling** — Fallback for network filesystems
 
-    // Start dev server via reflection
-    Class<?> mainClass = applicationLoader.loadClass("play.core.server.DevServerStart");
-    Method mainDev = mainClass.getMethod("mainDevHttpMode",
-                                         BuildLink.class, Integer.TYPE, String.class);
-    ReloadableServer server = (ReloadableServer) mainDev.invoke(null, reloader, port, httpAddress);
+### Source Position Mapping
 
-    return new ReloaderPlayDevServer(server, reloader);
+When compilation fails, Play shows a nice error page pointing to the exact line. But for generated code (routes, templates), the `.scala` file line numbers don't match your source.
+
+The plugin maps positions back to original sources:
+
+```java
+public Object[] findSource(String className, Integer line) {
+    File sourceFile = sourceMap.get(className);
+
+    // If it's a generated template, map back to .scala.html
+    if (isGeneratedTemplate(sourceFile)) {
+        Play2TemplateGeneratedSource template =
+            mapper.getGeneratedSource(sourceFile);
+        return new Object[] {
+            new File(template.getSourceFileName()),  // index.scala.html
+            template.mapLine(line)                   // original line number
+        };
+    }
+    return new Object[] { sourceFile, line };
 }
 ```
+
+### Dev Server Startup
+
+When you run `mvn play2:run`, here's what happens:
+
+1. **Collect classpath** — All dependency JARs (excluding reactor modules being reloaded)
+2. **Set up classloader hierarchy** — As shown above
+3. **Create Reloader** — With reference to `MavenPlay2Builder`
+4. **Start Play via reflection**:
+   ```java
+   Class<?> mainClass = loader.loadClass("play.core.server.DevServerStart");
+   Method mainDev = mainClass.getMethod("mainDevHttpMode",
+       BuildLink.class, Integer.TYPE, String.class);
+   ReloadableServer server = mainDev.invoke(null, reloader, port, address);
+   ```
+5. **Wait for Enter key** — `System.in.read()` blocks until user presses Enter
+6. **Shutdown** — `server.close()`
+
+### Why This Is Complex
+
+Hot reload requires:
+- **Tight integration with Play internals** — `BuildLink`, classloader contracts
+- **Incremental build tracking** — Know exactly which files changed
+- **Multi-module awareness** — Rebuild dependent modules in correct order
+- **Source mapping** — Trace generated code back to original sources
+- **Error handling** — Convert Maven errors to Play's error page format
+
+This is why the plugin exists — doing this manually would require reimplementing hundreds of lines of carefully coordinated code.
 
 ---
 
