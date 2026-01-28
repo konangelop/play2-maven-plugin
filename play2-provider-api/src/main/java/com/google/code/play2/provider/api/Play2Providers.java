@@ -28,7 +28,7 @@ public class Play2Providers
         String result = null;
         if ( playVersion != null && !playVersion.isEmpty() )
         {
-            if ( playVersion.startsWith( "3.0." ) || playVersion.startsWith( "3.0-" ) )
+            if ( playVersion.startsWith( "3." ) )
             {
                 result = "play30";
             }
@@ -36,42 +36,10 @@ public class Play2Providers
             {
                 result = "play29"; // Play 2.9.x with Scala 2.13 (use play30 for Scala 3)
             }
-            else if ( playVersion.startsWith( "2.8." ) || playVersion.startsWith( "2.8-" ) )
-            {
-                result = "play28";
-            }
-            else if ( playVersion.startsWith( "2.7." ) || playVersion.startsWith( "2.7-" ) )
-            {
-                result = "play27";
-            }
-            else if ( playVersion.startsWith( "2.6." ) || playVersion.startsWith( "2.6-" ) )
-            {
-                result = "play26";
-            }
-            else if ( playVersion.startsWith( "2.5." ) || playVersion.startsWith( "2.5-" ) )
-            {
-                result = "play25";
-            }
-            else if ( playVersion.startsWith( "2.4." ) || playVersion.startsWith( "2.4-" ) )
-            {
-                result = "play24";
-            }
-            else if ( playVersion.startsWith( "2.3." ) || playVersion.startsWith( "2.3-" ) )
-            {
-                result = "play23";
-            }
-            else if ( playVersion.startsWith( "2.2." ) || playVersion.startsWith( "2.2-" ) )
-            {
-                result = "play22";
-            }
-            else if ( playVersion.startsWith( "2.1." ) || playVersion.startsWith( "2.1-" ) )
-            {
-                result = "play21";
-            }
         }
         if ( result == null )
         {
-            result = "play30";
+            result = "play30"; // Default to latest
         }
         return result;
     }
