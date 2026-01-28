@@ -49,7 +49,7 @@ under the License.
                 org.apache.maven.plugins:maven-resources-plugin:resources
               </process-resources>
               <compile>
-                com.google.code.sbt-compiler-maven-plugin:sbt-compiler-maven-plugin:compile
+                net.alchim31.maven:scala-maven-plugin:compile
               </compile>
               <!-- add in the project, if needed <process-classes>
                 com.google.code.play2-maven-plugin:play2-maven-plugin:enhance
@@ -58,7 +58,7 @@ under the License.
                 org.apache.maven.plugins:maven-resources-plugin:testResources
               </process-test-resources>
               <test-compile>
-                com.google.code.sbt-compiler-maven-plugin:sbt-compiler-maven-plugin:testCompile
+                net.alchim31.maven:scala-maven-plugin:testCompile
               </test-compile>
               <test>
                 org.apache.maven.plugins:maven-surefire-plugin:test

@@ -39,8 +39,8 @@ under the License.
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-compiler-plugin</artifactId>
                     <configuration>
-                        <source>1.7</source>
-                        <target>1.7</target>
+                        <source>11</source>
+                        <target>11</target>
                     </configuration>
                 </plugin>
 
@@ -48,7 +48,7 @@ under the License.
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-javadoc-plugin</artifactId>
                     <configuration>
-                        <source>1.7</source>
+                        <source>11</source>
                         <links>
                             <link>http://docs.oracle.com/javase/7/docs/api/</link>
                         </links>
@@ -61,7 +61,7 @@ under the License.
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-pmd-plugin</artifactId>
                     <configuration>
-                        <targetJdk>1.7</targetJdk>
+                        <targetJdk>11</targetJdk>
                     </configuration>
                 </plugin>
 
@@ -89,8 +89,8 @@ under the License.
                         <configuration>
                             <rules>
                                 <requireJavaVersion>
-                                    <version>1.7</version>
-                                    <message>Java 1.7 or later required.</message>
+                                    <version>11</version>
+                                    <message>Java 11 or later required.</message>
                                 </requireJavaVersion>
                             </rules>
                         </configuration>
@@ -111,7 +111,7 @@ under the License.
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-javadoc-plugin</artifactId>
                         <configuration>
-                            <source>1.7</source>
+                            <source>11</source>
                             <links>
                                 <link>http://docs.oracle.com/javase/7/docs/api/</link>
                             </links>
@@ -130,7 +130,7 @@ under the License.
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-javadoc-plugin</artifactId>
                         <configuration>
-                            <source>1.7</source>
+                            <source>11</source>
                             <links>
                                 <link>http://docs.oracle.com/javase/7/docs/api/</link>
                             </links>
@@ -141,7 +141,7 @@ under the License.
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-pmd-plugin</artifactId>
                         <configuration>
-                            <targetJdk>1.7</targetJdk>
+                            <targetJdk>11</targetJdk>
                         </configuration>
                     </plugin>
                 </plugins>
