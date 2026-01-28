@@ -1332,11 +1332,10 @@ Users of Play 2.9.x with modern Scala (2.13.17+) need to configure the `scala-ma
 <plugin>
     <groupId>net.alchim31.maven</groupId>
     <artifactId>scala-maven-plugin</artifactId>
-    <version>4.9.2</version>
+    <version>4.9.9</version>
     <configuration>
-        <!-- Scala 2.13 doesn't support -release 25, use max supported -->
         <args>
-            <arg>-release:21</arg>
+            <arg>-release:25</arg>
         </args>
     </configuration>
 </plugin>
@@ -1344,7 +1343,7 @@ Users of Play 2.9.x with modern Scala (2.13.17+) need to configure the `scala-ma
 
 This is needed because:
 - The scala-maven-plugin inherits the `-release` flag from `maven-compiler-plugin`
-- Scala 2.13 only supports up to `-release:21`
+- Scala 2.13 only supports up to `-release:21` until Scala 2.13.17 which supports `-relase:25`
 - If your project targets Java 25, Scala compilation will fail without this override
 
 ---
