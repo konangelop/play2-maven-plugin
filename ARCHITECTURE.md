@@ -1,4 +1,4 @@
-# Play2 Maven Plugin Architecture
+ok # Play2 Maven Plugin Architecture
 
 This document provides a comprehensive overview of the Play2 Maven Plugin architecture, explaining how each component works and how it integrates with the Play Framework.
 
@@ -29,7 +29,7 @@ The Play2 Maven Plugin enables building Play Framework applications using Apache
 - Run applications in development mode with hot reload
 - Package applications for production deployment
 
-The plugin supports Play Framework versions 2.1.x through 2.8.x through a **provider pattern** that abstracts version-specific implementation details.
+The plugin supports Play Framework versions 2.9.x and 3.0.x through a **provider pattern** that abstracts version-specific implementation details.
 
 ---
 
@@ -42,14 +42,8 @@ play2-maven-plugin/
 ├── play2-maven-plugin/           # Main plugin (Maven Mojos)
 ├── play2-provider-api/           # SPI for Play Framework providers
 ├── play2-providers/              # Version-specific implementations
-│   ├── play2-provider-play21/    # Play 2.1.x support
-│   ├── play2-provider-play22/    # Play 2.2.x support
-│   ├── play2-provider-play23/    # Play 2.3.x support
-│   ├── play2-provider-play24/    # Play 2.4.x support
-│   ├── play2-provider-play25/    # Play 2.5.x support
-│   ├── play2-provider-play26/    # Play 2.6.x support
-│   ├── play2-provider-play27/    # Play 2.7.x support
-│   └── play2-provider-play28/    # Play 2.8.x support
+│   ├── play2-provider-play29/    # Play 2.9.x support (Scala 2.13)
+│   └── play2-provider-play30/    # Play 3.0.x support (Scala 3)
 ├── play2-source-position-mappers/ # Source position mapping for debugging
 ├── play2-source-watcher-api/      # File watching abstraction
 └── play2-source-watchers/         # File watcher implementations
@@ -102,31 +96,29 @@ The provider is selected based on the Play version string:
 
 ```java
 public static String getDefaultProviderId(String playVersion) {
-    if (playVersion.startsWith("2.8.")) return "play28";
-    if (playVersion.startsWith("2.7.")) return "play27";
-    if (playVersion.startsWith("2.6.")) return "play26";
-    // ... etc
-    return "play28"; // default
+    if (playVersion.startsWith("2.9.")) return "play29";
+    // Play 3.x
+    return "play30";
 }
 ```
 
 ### Provider Implementation Example
 
-**Location:** `play2-providers/play2-provider-play28/src/main/java/com/google/code/play2/provider/play28/Play28Provider.java:35-87`
+**Location:** `play2-providers/play2-provider-play30/src/main/java/com/google/code/play2/provider/play30/Play30Provider.java`
 
 Providers are registered using Plexus component annotations:
 
 ```java
-@Component(role = Play2Provider.class, hint = "play28", description = "Play! 2.8.x")
-public class Play28Provider implements Play2Provider {
+@Component(role = Play2Provider.class, hint = "play30", description = "Play! 3.0.x")
+public class Play30Provider implements Play2Provider {
     @Override
     public Play2RoutesCompiler getRoutesCompiler() {
-        return new Play28RoutesCompiler();
+        return new Play30RoutesCompiler();
     }
 
     @Override
     public Play2Runner getRunner() {
-        return new Play28Runner();
+        return new Play30Runner();
     }
     // ... other implementations
 }
@@ -135,9 +127,10 @@ public class Play28Provider implements Play2Provider {
 ### Why This Architecture?
 
 Play Framework's internal APIs change between major versions. For example:
-- Routes generator types changed from `static` to `injected` in Play 2.4
-- Template compiler APIs evolved across versions
-- Dev server startup mechanisms changed significantly
+- Play 2.9.x uses `com.typesafe.play` groupId and Scala 2.13
+- Play 3.0.x uses `org.playframework` groupId and Scala 3
+- Artifact names differ (e.g. `play-build-link_2.13` vs `play-build-link` without Scala suffix)
+- Dev server startup mechanisms changed between versions
 
 The provider pattern isolates these changes, allowing the main plugin code to work uniformly across all supported versions.
 
@@ -241,7 +234,7 @@ public class Play2RoutesCompileMojo extends AbstractPlay2SourceGeneratorMojo {
 
 #### Provider Implementation
 
-**Location:** `play2-providers/play2-provider-play28/src/main/java/com/google/code/play2/provider/play28/Play28RoutesCompiler.java:37-132`
+**Location:** `play2-providers/play2-provider-play30/src/main/java/com/google/code/play2/provider/play30/Play28RoutesCompiler.java:37-132`
 
 The provider wraps Play's actual routes compiler:
 
@@ -579,7 +572,7 @@ public Object[] findSource(String className, Integer line) {
 
 #### Reloader
 
-**Location:** `play2-providers/play2-provider-play28/src/main/java/com/google/code/play2/provider/play28/run/Reloader.java:33-155`
+**Location:** `play2-providers/play2-provider-play30/src/main/java/com/google/code/play2/provider/play30/run/Reloader.java:33-155`
 
 The `Reloader` class implements Play's `BuildLink` interface:
 
@@ -614,7 +607,7 @@ public class Reloader implements BuildLink {
 
 #### Play28Runner
 
-**Location:** `play2-providers/play2-provider-play28/src/main/java/com/google/code/play2/provider/play28/Play28Runner.java:45-140`
+**Location:** `play2-providers/play2-provider-play30/src/main/java/com/google/code/play2/provider/play30/Play28Runner.java:45-140`
 
 Starts the Play development server:
 
@@ -934,7 +927,7 @@ This hierarchy enables:
 
 The Play2 Maven Plugin provides comprehensive Maven support for Play Framework through:
 
-1. **Provider Pattern:** Isolates version-specific code, supporting Play 2.1.x through 2.8.x
+1. **Provider Pattern:** Isolates version-specific code, supporting Play 2.9.x and 3.0.x
 2. **Maven Lifecycle Integration:** Goals map to standard Maven phases
 3. **Development Mode:** Full hot-reload support via `BuildLink` interface
 4. **Incremental Compilation:** Leverages SBT analysis for efficient rebuilds
