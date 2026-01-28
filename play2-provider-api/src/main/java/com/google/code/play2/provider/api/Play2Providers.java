@@ -25,7 +25,11 @@ public class Play2Providers
 
     public static String getDefaultProviderId( String playVersion )
     {
-        // Only Play 3.x is supported (Play went from 2.8.x directly to 3.0.x)
+        if ( playVersion.startsWith( "2.9." ) )
+        {
+            return "play29";
+        }
+        // Play 3.x
         return "play30";
     }
 
