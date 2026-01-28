@@ -124,10 +124,10 @@ under the License.
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-compiler-plugin</artifactId>
-                    <version>3.7.0</version>
+                    <version>3.13.0</version>
                     <configuration>
-                        <source>1.6</source>
-                        <target>1.6</target>
+                        <source>11</source>
+                        <target>11</target>
                     </configuration>
                 </plugin>
 
@@ -182,12 +182,12 @@ under the License.
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-javadoc-plugin</artifactId>
-                    <version>3.0.1</version>
+                    <version>3.6.3</version>
                     <configuration>
-                        <source>1.6</source>
+                        <source>11</source>
                         <detectJavaApiLink>false</detectJavaApiLink>
                         <links>
-                            <link>http://docs.oracle.com/javase/1.6.0/docs/api/</link>
+                            <link>https://docs.oracle.com/en/java/javase/11/docs/api/</link>
                         </links>
                         <notimestamp>true</notimestamp>
                         <!-- graphviz -->
@@ -215,9 +215,9 @@ under the License.
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-pmd-plugin</artifactId>
-                    <version>3.9.0</version>
+                    <version>3.21.2</version>
                     <configuration>
-                        <targetJdk>1.6</targetJdk>
+                        <targetJdk>11</targetJdk>
                     </configuration>
                 </plugin>
 
@@ -263,6 +263,8 @@ under the License.
                             <scala210LatestVersion>2.10.7</scala210LatestVersion>
                             <scala211LatestVersion>2.11.12</scala211LatestVersion>
                             <scala212LatestVersion>2.12.10</scala212LatestVersion>
+                            <scala213LatestVersion>2.13.14</scala213LatestVersion>
+                            <scala3LatestVersion>3.3.3</scala3LatestVersion>
                             <play21LatestVersion>2.1.5</play21LatestVersion>
                             <play22LatestVersion>2.2.6</play22LatestVersion>
                             <play23LatestVersion>2.3.10</play23LatestVersion>
@@ -271,6 +273,8 @@ under the License.
                             <play26LatestVersion>2.6.21</play26LatestVersion>
                             <play27LatestVersion>2.7.4</play27LatestVersion>
                             <play28LatestVersion>2.8.0</play28LatestVersion>
+                            <play29LatestVersion>2.9.5</play29LatestVersion>
+                            <play30LatestVersion>3.0.5</play30LatestVersion>
                             <play22WarLatestVersion>1.2.1</play22WarLatestVersion>
                             <play23WarLatestVersion>1.3-beta3</play23WarLatestVersion>
                             <play24WarLatestVersion>1.4.0</play24WarLatestVersion>
@@ -306,11 +310,11 @@ under the License.
                 <plugin>
                     <groupId>org.codehaus.mojo</groupId>
                     <artifactId>animal-sniffer-maven-plugin</artifactId>
-                    <version>1.16</version>
+                    <version>1.23</version>
                     <configuration>
                         <signature>
                             <groupId>org.codehaus.mojo.signature</groupId>
-                            <artifactId>java16</artifactId>
+                            <artifactId>java11</artifactId>
                             <version>1.0</version>
                         </signature>
                     </configuration>
@@ -455,8 +459,8 @@ under the License.
                         <configuration>
                             <rules>
                                 <requireJavaVersion>
-                                    <version>1.6</version>
-                                    <message>Java 1.6 or later required.</message>
+                                    <version>11</version>
+                                    <message>Java 11 or later required (supports up to Java 25).</message>
                                 </requireJavaVersion>
                             </rules>
                         </configuration>

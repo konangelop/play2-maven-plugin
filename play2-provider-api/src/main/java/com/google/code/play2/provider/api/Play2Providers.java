@@ -28,7 +28,15 @@ public class Play2Providers
         String result = null;
         if ( playVersion != null && !playVersion.isEmpty() )
         {
-            if ( playVersion.startsWith( "2.8." ) || playVersion.startsWith( "2.8-" ) )
+            if ( playVersion.startsWith( "3.0." ) || playVersion.startsWith( "3.0-" ) )
+            {
+                result = "play30";
+            }
+            else if ( playVersion.startsWith( "2.9." ) || playVersion.startsWith( "2.9-" ) )
+            {
+                result = "play29"; // Play 2.9.x with Scala 2.13 (use play30 for Scala 3)
+            }
+            else if ( playVersion.startsWith( "2.8." ) || playVersion.startsWith( "2.8-" ) )
             {
                 result = "play28";
             }
@@ -63,7 +71,7 @@ public class Play2Providers
         }
         if ( result == null )
         {
-            result = "play28";
+            result = "play30";
         }
         return result;
     }
