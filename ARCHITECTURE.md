@@ -4,18 +4,71 @@ This document provides a comprehensive overview of the Play2 Maven Plugin archit
 
 ## Table of Contents
 
-1. [Overview](#overview)
-2. [Project Structure](#project-structure)
-3. [Provider Architecture](#provider-architecture)
-4. [Maven Goals (Mojos)](#maven-goals-mojos)
-5. [Routes Compilation](#routes-compilation)
-6. [Template Compilation](#template-compilation)
-7. [Bytecode Enhancement](#bytecode-enhancement)
-8. [Development Mode (Hot Reload)](#development-mode-hot-reload)
-9. [Distribution Packaging](#distribution-packaging)
-10. [File Watch Service](#file-watch-service)
-11. [SBT Analysis Integration](#sbt-analysis-integration)
-12. [Configuration Reference](#configuration-reference)
+1. [Problem Statement](#problem-statement)
+2. [Overview](#overview)
+3. [Project Structure](#project-structure)
+4. [Provider Architecture](#provider-architecture)
+5. [Maven Goals (Mojos)](#maven-goals-mojos)
+6. [Routes Compilation](#routes-compilation)
+7. [Template Compilation](#template-compilation)
+8. [Bytecode Enhancement](#bytecode-enhancement)
+9. [Development Mode (Hot Reload)](#development-mode-hot-reload)
+10. [Distribution Packaging](#distribution-packaging)
+11. [File Watch Service](#file-watch-service)
+12. [SBT Analysis Integration](#sbt-analysis-integration)
+13. [Configuration Reference](#configuration-reference)
+
+---
+
+## Problem Statement
+
+### Why This Plugin Exists
+
+Play Framework applications cannot be built with a plain `mvn compile`. Play relies on several code generation and bytecode transformation steps that are normally handled by SBT (Scala Build Tool), Play's default build system. Without a specialized plugin, a Maven-based build would be missing critical parts of the compilation pipeline.
+
+### How Play Builds Differ from Standard Java/Scala Projects
+
+A Play application has source artifacts that are not standard Java or Scala files and require pre-processing before the Scala/Java compiler can run:
+
+1. **Routes files** (`conf/routes`) — A DSL that maps HTTP endpoints to controller methods. These must be compiled into Scala source files (`Routes.scala`, reverse routing classes) before the main Scala compilation step. Without this, the application has no HTTP routing.
+
+2. **Twirl templates** (`app/views/*.scala.html`) — Play's type-safe HTML templating language. Each template is compiled into a Scala object (e.g. `views.html.index`) that can be called from controllers. Without this, templates are just text files the compiler cannot see.
+
+3. **Bytecode enhancement** — Play's Java API uses bytecode manipulation (via ASM) to auto-generate getters/setters for public fields in model classes and rewrite field access to go through those accessors. Without this post-compilation step, Java models don't behave as Play expects.
+
+4. **Development mode (hot reload)** — Play's dev server calls back into the build tool on every HTTP request via the `BuildLink` interface. If source files have changed, the build tool recompiles and returns a new `ClassLoader`, and Play reloads the application without restarting the JVM. This requires tight integration between the build tool and Play's runtime.
+
+5. **Distribution packaging** — Production deployment requires assembling all dependency JARs and generating platform-specific startup scripts that invoke `play.core.server.ProdServerStart`. This is not a standard Maven JAR or WAR.
+
+### What This Plugin Does
+
+The play2-maven-plugin integrates these steps into the Maven build lifecycle:
+
+| Build Step | Maven Phase | What Happens |
+|-----------|-------------|--------------|
+| Routes compilation | `generate-sources` | `conf/routes` → Scala source files in `target/routes/main/` |
+| Template compilation | `generate-sources` | `*.scala.html` → Scala source files in `target/twirl/main/` |
+| Scala/Java compilation | `compile` | All sources (including generated) compiled by `scala-maven-plugin` |
+| Bytecode enhancement | `process-classes` | ASM transforms applied to compiled `.class` files |
+| Distribution packaging | `package` | JARs + startup scripts assembled into a deployable archive |
+
+The plugin defines a custom `play2` packaging type that wires these steps into Maven's standard lifecycle, so `mvn package` produces a complete Play application.
+
+### Without This Plugin
+
+To build a Play application with Maven but without this plugin, you would need to:
+
+1. **Manually invoke Play's compilers** — Call `play.routes.compiler.RoutesCompiler` and `play.twirl.compiler.TwirlCompiler` as pre-build steps (e.g. via `exec-maven-plugin` or a custom script), ensuring their output lands in the right directories and gets picked up by the Scala compiler.
+
+2. **Configure source generation** — Use `build-helper-maven-plugin` to add the generated source directories (`target/routes/main/`, `target/twirl/main/`) to the compilation source roots.
+
+3. **Run bytecode enhancement** — Write a post-compilation step that loads compiled classes, runs `play.core.enhancers.PropertiesEnhancer.generateAccessors()` and `rewriteAccess()` on them, and writes the modified class files back.
+
+4. **Implement dev mode from scratch** — Write a program that implements Play's `BuildLink` interface, watches for file changes, triggers Maven rebuilds, creates new classloaders, and feeds them to `play.core.server.DevServerStart`. This is hundreds of lines of classloader management and build orchestration.
+
+5. **Script distribution packaging** — Write shell/batch scripts to collect all dependency JARs, assemble the directory layout, and generate startup scripts.
+
+In practice, this is infeasible to maintain by hand, which is why this plugin exists. It wraps all of Play's internal build APIs behind Maven goals that integrate naturally with the Maven lifecycle.
 
 ---
 
