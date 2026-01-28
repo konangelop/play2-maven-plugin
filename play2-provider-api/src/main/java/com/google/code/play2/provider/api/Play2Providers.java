@@ -34,7 +34,7 @@ public class Play2Providers
             }
             else if ( playVersion.startsWith( "2.9." ) || playVersion.startsWith( "2.9-" ) )
             {
-                result = "play30"; // Play 2.9.x uses same provider as Play 3.0.x (both support Scala 3)
+                result = "play29"; // Play 2.9.x with Scala 2.13 (use play30 for Scala 3)
             }
             else if ( playVersion.startsWith( "2.8." ) || playVersion.startsWith( "2.8-" ) )
             {
