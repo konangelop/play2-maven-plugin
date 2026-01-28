@@ -67,7 +67,7 @@ under the License.
 
         <dependency>
             <groupId>org.playframework</groupId>
-            <artifactId>play-build-link_3</artifactId>
+            <artifactId>play-build-link</artifactId>
             <version>${play2.version}</version>
         </dependency>
 
