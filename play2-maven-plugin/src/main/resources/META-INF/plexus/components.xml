@@ -77,7 +77,7 @@ under the License.
       <configuration>
         <type>play2</type>
         <includesDependencies>true</includesDependencies>
-        <language>scala</language>
+        <language>java</language>
         <extension>jar</extension>
         <addedToClasspath>true</addedToClasspath>
       </configuration>
