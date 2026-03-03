@@ -161,6 +161,11 @@ public abstract class AbstractPlay2Mojo
     protected final BufferedWriter createBufferedFileWriter( File file, String encoding )
         throws FileNotFoundException, UnsupportedEncodingException
     {
+        File parentDir = file.getParentFile();
+        if ( parentDir != null && !parentDir.exists() )
+        {
+            parentDir.mkdirs();
+        }
         FileOutputStream fos = new FileOutputStream( file );
         OutputStreamWriter osw = encoding != null ? new OutputStreamWriter( fos, encoding ) : new OutputStreamWriter( fos );
         return new BufferedWriter( osw );
