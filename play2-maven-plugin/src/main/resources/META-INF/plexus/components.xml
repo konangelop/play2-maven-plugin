@@ -48,24 +48,17 @@ under the License.
               <process-resources>
                 org.apache.maven.plugins:maven-resources-plugin:resources
               </process-resources>
-              <compile>
-                com.google.code.sbt-compiler-maven-plugin:sbt-compiler-maven-plugin:compile
-              </compile>
+              <!-- Compiler not bound - user configures scala-maven-plugin in their project -->
               <!-- add in the project, if needed <process-classes>
                 com.google.code.play2-maven-plugin:play2-maven-plugin:enhance
               </process-classes> -->
               <process-test-resources>
                 org.apache.maven.plugins:maven-resources-plugin:testResources
               </process-test-resources>
-              <test-compile>
-                com.google.code.sbt-compiler-maven-plugin:sbt-compiler-maven-plugin:testCompile
-              </test-compile>
               <test>
                 org.apache.maven.plugins:maven-surefire-plugin:test
               </test>
-              <package>
-                  org.apache.maven.plugins:maven-jar-plugin:jar
-              </package>
+              <!-- Jar plugin not bound - user configures maven-jar-plugin in their project -->
               <install>
                 org.apache.maven.plugins:maven-install-plugin:install
               </install>
@@ -84,7 +77,7 @@ under the License.
       <configuration>
         <type>play2</type>
         <includesDependencies>true</includesDependencies>
-        <language>java</language>
+        <language>scala</language>
         <extension>jar</extension>
         <addedToClasspath>true</addedToClasspath>
       </configuration>
