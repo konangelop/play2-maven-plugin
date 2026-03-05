@@ -39,8 +39,7 @@ under the License.
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-compiler-plugin</artifactId>
                     <configuration>
-                        <source>1.7</source>
-                        <target>1.7</target>
+                        <release>8</release>
                     </configuration>
                 </plugin>
 
@@ -48,7 +47,7 @@ under the License.
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-javadoc-plugin</artifactId>
                     <configuration>
-                        <source>1.7</source>
+                        <source>8</source>
                         <links>
                             <link>http://docs.oracle.com/javase/7/docs/api/</link>
                         </links>

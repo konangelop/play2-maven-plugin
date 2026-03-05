@@ -117,8 +117,7 @@ under the License.
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-compiler-plugin</artifactId>
                     <configuration>
-                        <source>1.8</source>
-                        <target>1.8</target>
+                        <release>8</release>
                     </configuration>
                 </plugin>
 
@@ -126,7 +125,7 @@ under the License.
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-javadoc-plugin</artifactId>
                     <configuration>
-                        <source>1.8</source>
+                        <source>8</source>
                         <links>
                             <link>https://docs.oracle.com/javase/8/docs/api/</link>
                         </links>
